@@ -1,0 +1,16 @@
+benchmark.sh
+dashboard_debug.log
+dashboard_output.log
+debug_tabs.html
+MEMORY_ANALYSIS.md
+MEMORY_BREAKDOWN_FEATURES.md
+OPTIMIZATION_SUCCESS.md
+run_with_db_viewer.sh
+status.sh
+test_dashboard_functionality.sh
+test_dashboard_memory.sh
+test_memory.sh
+test_tab_functionality.js
+test_tabs.html
+validate_memory.sh
+golamv2_data

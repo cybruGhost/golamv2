@@ -1,0 +1,83 @@
+package infrastructure
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"golamv2/internal/domain"
+	"golamv2/pkg/bloom"
+	"golamv2/pkg/metrics"
+	"golamv2/pkg/queue"
+	"golamv2/pkg/storage"
+)
+
+// Infrastructure holds all infrastructure components
+type Infrastructure struct {
+	URLQueue         domain.URLQueue
+	BloomFilter      domain.BloomFilter
+	Storage          domain.Storage
+	RobotsChecker    domain.RobotsChecker
+	ContentExtractor domain.ContentExtractor
+	Metrics          *metrics.MetricsCollector
+}
+
+// NewInfrastructure creates a new infrastructure instance
+func NewInfrastructure(maxMemoryMB int) (*Infrastructure, error) {
+	// Create metrics collector
+	metricsCollector := metrics.NewMetricsCollector()
+
+	// Create Bloom filter for URL deduplication
+	bloomFilter := bloom.NewURLBloomFilter()
+
+	// Create storage (default path in current directory)
+	dbPath := filepath.Join(".", "golamv2_data")
+	storage, err := storage.NewBadgerStorage(dbPath, domain.ModeAll, maxMemoryMB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create storage: %v", err)
+	}
+
+	// Create URL queue
+	urlQueue := queue.NewPriorityURLQueue(storage)
+
+	// Create robots checker
+	robotsChecker := NewRobotsChecker("GolamV2-Crawler/1.0")
+
+	// Create content extractor
+	contentExtractor := NewContentExtractor()
+
+	// Set up memory tracking components
+	metricsCollector.SetComponentMemoryTrackers(bloomFilter, storage, urlQueue)
+
+	return &Infrastructure{
+		URLQueue:         urlQueue,
+		BloomFilter:      bloomFilter,
+		Storage:          storage,
+		RobotsChecker:    robotsChecker,
+		ContentExtractor: contentExtractor,
+		Metrics:          metricsCollector,
+	}, nil
+}
+
+// GetMetrics returns the metrics collector
+func (i *Infrastructure) GetMetrics() *metrics.MetricsCollector {
+	return i.Metrics
+}
+
+// Close closes all infrastructure components
+func (i *Infrastructure) Close() error {
+	var errors []error
+
+	if err := i.URLQueue.Close(); err != nil {
+		errors = append(errors, fmt.Errorf("failed to close URL queue: %v", err))
+	}
+
+	if err := i.Storage.Close(); err != nil {
+		errors = append(errors, fmt.Errorf("failed to close storage: %v", err))
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("infrastructure close errors: %v", errors)
+	}
+
+	return nil
+}
