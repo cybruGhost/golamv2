@@ -2,6 +2,8 @@
 
 GolamV2 is a high-performance, low-memory web crawler designed for maximum throughput in resource-constrained environments. It supports multiple hunting modes including email extraction, keyword searching, and dead link detection. It is a rewrite of the Python Version Gollum Spyder [here](https://github.com/nobrainghost/Keyword-Web-Crawler). Includes a Custom Interactive CLI Explore for its BadgerDB database
 
+![Screenshot From 2025-06-09 18-12-49](https://github.com/user-attachments/assets/4269818d-0f28-42af-9408-1a51b85decb2)
+
 ## Features
 
 - **Multi-Purpose Crawling**: Email hunting, keyword searching, dead link detection
