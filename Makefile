@@ -22,7 +22,6 @@ WINDOWS_GOARCH=amd64
 WINDOWS_EXT=.exe
 
 GO_LDFLAGS=-ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME) -X main.CommitHash=$(COMMIT_HASH)"
-GO_GCFLAGS=-gcflags="-m=2"
 GO_BUILDMODE=-buildmode=exe
 
 BUILD_TAGS=netgo,osusergo

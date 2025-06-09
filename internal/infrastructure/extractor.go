@@ -194,7 +194,6 @@ func (e *ContentExtractor) CheckDeadLinks(links []string) ([]string, []string) {
 
 // checks if a link returns 404 or is unreachable --- Slow response times can cause issues with false positives
 func (e *ContentExtractor) isDeadLink(urlStr string) bool {
-	// Check cache first
 	e.mu.RLock()
 	if cached, exists := e.deadLinkCache[urlStr]; exists {
 		e.mu.RUnlock()
@@ -202,35 +201,31 @@ func (e *ContentExtractor) isDeadLink(urlStr string) bool {
 	}
 	e.mu.RUnlock()
 
-	// is alive?
 	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {
-		e.cacheDeadLink(urlStr, true)
-		return true
+		e.cacheDeadLink(urlStr, false)
+		return false
 	}
 
 	req.Header.Set("User-Agent", "GolamV2-Crawler/1.0")
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		e.cacheDeadLink(urlStr, true)
-		return true
+		e.cacheDeadLink(urlStr, false)
+		return false
 	}
 	defer resp.Body.Close()
 
-	isDead := resp.StatusCode == 404 || resp.StatusCode >= 500
+	isDead := resp.StatusCode == 404
 	e.cacheDeadLink(urlStr, isDead)
 
 	return isDead
 }
 
-// cache the dead link status
 func (e *ContentExtractor) cacheDeadLink(urlStr string, isDead bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	// Limit cache size to prevent memory issues - reduced from initial 10k to 5k (My usecase is a 1gb RAM VPS!)
 	if len(e.deadLinkCache) > 5000 {
-		// Clear half the cache
 		count := 0
 		for k := range e.deadLinkCache {
 			delete(e.deadLinkCache, k)
