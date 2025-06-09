@@ -82,6 +82,11 @@ func (m *MetricsCollector) UpdateKeywordsFound(delta int64) {
 	atomic.AddInt64(&m.metrics.KeywordsFound, delta)
 }
 
+// UpdateLinksChecked increments the links checked counter
+func (m *MetricsCollector) UpdateLinksChecked(delta int64) {
+	atomic.AddInt64(&m.metrics.LinksChecked, delta)
+}
+
 // UpdateDeadLinksFound increments the dead links found counter
 func (m *MetricsCollector) UpdateDeadLinksFound(delta int64) {
 	atomic.AddInt64(&m.metrics.DeadLinksFound, delta)

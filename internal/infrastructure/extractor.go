@@ -26,7 +26,13 @@ func NewContentExtractor() *ContentExtractor {
 	return &ContentExtractor{
 		emailRegex: regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`),
 		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout: 10 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 3 {
+					return http.ErrUseLastResponse
+				}
+				return nil
+			},
 		},
 		deadLinkCache: make(map[string]bool),
 	}
@@ -145,7 +151,6 @@ func (e *ContentExtractor) CheckDeadLinks(links []string) ([]string, []string) {
 	var deadDomains []string
 	domainMap := make(map[string]bool)
 
-	// Use channels for concurrent checking
 	type linkResult struct {
 		url    string
 		isDead bool
@@ -155,7 +160,6 @@ func (e *ContentExtractor) CheckDeadLinks(links []string) ([]string, []string) {
 	linkChan := make(chan string, len(links))
 	resultChan := make(chan linkResult, len(links))
 
-	// Start workers
 	numWorkers := 10
 	for i := 0; i < numWorkers; i++ {
 		go func() {
@@ -171,13 +175,11 @@ func (e *ContentExtractor) CheckDeadLinks(links []string) ([]string, []string) {
 		}()
 	}
 
-	// Send links to workers
 	for _, link := range links {
 		linkChan <- link
 	}
 	close(linkChan)
 
-	// Collect results
 	for i := 0; i < len(links); i++ {
 		result := <-resultChan
 		if result.isDead {
@@ -206,8 +208,8 @@ func (e *ContentExtractor) isDeadLink(urlStr string) bool {
 		e.cacheDeadLink(urlStr, false)
 		return false
 	}
-
 	req.Header.Set("User-Agent", "GolamV2-Crawler/1.0")
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		e.cacheDeadLink(urlStr, false)
@@ -215,7 +217,17 @@ func (e *ContentExtractor) isDeadLink(urlStr string) bool {
 	}
 	defer resp.Body.Close()
 
-	isDead := resp.StatusCode == 404
+	if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
+		req.Method = "GET"
+		resp, err = e.httpClient.Do(req)
+		if err != nil {
+			e.cacheDeadLink(urlStr, false)
+			return false
+		}
+		defer resp.Body.Close()
+	}
+
+	isDead := resp.StatusCode == 404 || resp.StatusCode == 410
 	e.cacheDeadLink(urlStr, isDead)
 
 	return isDead
@@ -226,14 +238,7 @@ func (e *ContentExtractor) cacheDeadLink(urlStr string, isDead bool) {
 	defer e.mu.Unlock()
 
 	if len(e.deadLinkCache) > 5000 {
-		count := 0
-		for k := range e.deadLinkCache {
-			delete(e.deadLinkCache, k)
-			count++
-			if count >= 2500 {
-				break
-			}
-		}
+		e.deadLinkCache = make(map[string]bool)
 	}
 
 	e.deadLinkCache[urlStr] = isDead

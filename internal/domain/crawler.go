@@ -45,6 +45,7 @@ type CrawlMetrics struct {
 	URLsInDB         int64     `json:"urls_in_db"`
 	EmailsFound      int64     `json:"emails_found"`
 	KeywordsFound    int64     `json:"keywords_found"`
+	LinksChecked     int64     `json:"links_checked"`
 	DeadLinksFound   int64     `json:"dead_links_found"`
 	DeadDomainsFound int64     `json:"dead_domains_found"`
 	ActiveWorkers    int       `json:"active_workers"`

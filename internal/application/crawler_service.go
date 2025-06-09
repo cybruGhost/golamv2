@@ -162,6 +162,7 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 	case "domains":
 		links := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
 		result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links)
+		c.infra.Metrics.UpdateLinksChecked(int64(len(links)))
 		c.infra.Metrics.UpdateDeadLinksFound(int64(len(result.DeadLinks)))
 		c.infra.Metrics.UpdateDeadDomainsFound(int64(len(result.DeadDomains)))
 
@@ -173,13 +174,13 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 		links := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
 		result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links)
 
-		// Update metrics
 		c.infra.Metrics.UpdateEmailsFound(int64(len(result.Emails)))
 		keywordCount := int64(0)
 		for _, count := range result.Keywords {
 			keywordCount += int64(count)
 		}
 		c.infra.Metrics.UpdateKeywordsFound(keywordCount)
+		c.infra.Metrics.UpdateLinksChecked(int64(len(links)))
 		c.infra.Metrics.UpdateDeadLinksFound(int64(len(result.DeadLinks)))
 		c.infra.Metrics.UpdateDeadDomainsFound(int64(len(result.DeadDomains)))
 	}
