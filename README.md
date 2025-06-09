@@ -30,7 +30,7 @@ GolamV2 is a high-performance, low-memory web crawler designed for maximum throu
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/nobrainghost/golamv2
 cd GolamV2
 
 # Install dependencies
