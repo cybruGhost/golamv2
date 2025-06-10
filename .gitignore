@@ -14,3 +14,12 @@ test_tab_functionality.js
 test_tabs.html
 validate_memory.sh
 golamv2_data
+performance_test.sh
+performance_diagnostic.sh
+PERFORMANCE_ANALYSIS.md
+perf_monitor.sh
+REDDIT_POST.md
+MEMORY_BREAKDOWN_FEATURE.md
+memory_breakdown_verification.sh
+memory_monitor.sh
+MEMORY_BREAKDOWN_FEATURE.md

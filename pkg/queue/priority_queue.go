@@ -8,11 +8,10 @@ import (
 )
 
 const (
-	MaxQueueSize    = 50000 // 50k was optimal for my low resource env, but it is very low, can be increased to about 200k ~roughly 150mb for normal urls,
-	RefillThreshold = 0.4   // Refill when queue is <40% full
+	MaxQueueSize    = 100000 // Increased from 50k for better throughput - roughly 80mb for normal urls
+	RefillThreshold = 0.2    // Refill when queue is <20% full (more aggressive)
 )
 
-// PriorityURLQueue implements a priority queue for URLs with automatic DB refilling
 type PriorityURLQueue struct {
 	mu              sync.RWMutex
 	heap            *urlHeap

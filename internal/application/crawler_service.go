@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,25 +19,45 @@ import (
 
 // CrawlerService implements the main crawler application logic
 type CrawlerService struct {
-	infra         *infrastructure.Infrastructure
-	mode          domain.CrawlMode
-	keywords      []string
-	activeWorkers int64
-	httpClient    *http.Client
-	rateLimiter   *rate.Limiter
+	infra            *infrastructure.Infrastructure
+	mode             domain.CrawlMode
+	keywords         []string
+	activeWorkers    int64
+	httpClient       *http.Client
+	rateLimiter      *rate.Limiter
+	checkDeadDomains bool // Track if --domains flag was explicitly passed
 }
 
 // NewCrawlerService creates a new crawler service
-func NewCrawlerService(infra *infrastructure.Infrastructure, mode domain.CrawlMode, keywords []string) *CrawlerService {
+func NewCrawlerService(infra *infrastructure.Infrastructure, mode domain.CrawlMode, keywords []string, checkDeadDomains bool) *CrawlerService {
+	transport := &http.Transport{
+		// Connection limits - CRITICAL FIX for aggressive domains
+		MaxIdleConnsPerHost: 25,  // Allow 25 idle connections per host (default: 2)
+		MaxConnsPerHost:     50,  // Allow 50 total connections per host (default: unlimited but throttled)
+		MaxIdleConns:        100, // Total idle connections across all hosts (default: 100)
+
+		// Timeout settings for better performance
+		DialContext: (&net.Dialer{
+			Timeout:   3 * time.Second,  // Connection timeout
+			KeepAlive: 30 * time.Second, // Keep connections alive
+		}).DialContext,
+		TLSHandshakeTimeout:   3 * time.Second,  // TLS handshake timeout
+		ResponseHeaderTimeout: 5 * time.Second,  // Response header timeout
+		IdleConnTimeout:       90 * time.Second, // Idle connection timeout
+
+		DisableCompression: false, // Keep compression for bandwidth efficiency^
+	}
+
 	return &CrawlerService{
-		infra:    infra,
-		mode:     mode,
-		keywords: keywords,
+		infra:            infra,
+		mode:             mode,
+		keywords:         keywords,
+		checkDeadDomains: checkDeadDomains,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   5 * time.Second, // 5 second timeout
+			Transport: transport,
 		},
-		// Default rate limit: 10 requests per second to be respectful
-		rateLimiter: rate.NewLimiter(rate.Limit(10), 10),
+		rateLimiter: rate.NewLimiter(rate.Limit(200), 200),
 	}
 }
 
@@ -87,8 +109,8 @@ func (c *CrawlerService) worker(ctx context.Context, workerID, maxDepth int) {
 			// Try to get a URL from the queue
 			task, err := c.infra.URLQueue.Pop()
 			if err != nil {
-				// Queue is empty, wait a bit and try again
-				time.Sleep(100 * time.Millisecond)
+				// Queue is empty, wait a bit and try again (reduced from 100ms)
+				time.Sleep(10 * time.Millisecond)
 				continue
 			}
 
@@ -119,12 +141,12 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 		return
 	}
 
-	// Respect crawl delay
-	domain := domain.GetDomain(task.URL)
-	crawlDelay := c.infra.RobotsChecker.GetCrawlDelay("GolamV2-Crawler/1.0", domain)
-	if crawlDelay > 0 {
-		time.Sleep(crawlDelay)
-	}
+	// Respect crawl delay - DISABLED FOR PERFORMANCE
+	// domain := domain.GetDomain(task.URL)
+	// crawlDelay := c.infra.RobotsChecker.GetCrawlDelay("GolamV2-Crawler/1.0", domain)
+	// if crawlDelay > 0 {
+	//     time.Sleep(crawlDelay)
+	// }
 
 	// Rate limiting
 	if err := c.rateLimiter.Wait(ctx); err != nil {
@@ -161,18 +183,28 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 
 	case "domains":
 		links := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
-		result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links)
+		result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links, task.URL)
 		c.infra.Metrics.UpdateLinksChecked(int64(len(links)))
 		c.infra.Metrics.UpdateDeadLinksFound(int64(len(result.DeadLinks)))
 		c.infra.Metrics.UpdateDeadDomainsFound(int64(len(result.DeadDomains)))
 
 	case "all":
-		// Extract everything
+		// Extract everything - enable dead link checking if domains mode was requested
 		result.Emails = c.infra.ContentExtractor.ExtractEmails(content)
 		result.Keywords = c.infra.ContentExtractor.ExtractKeywords(content, c.keywords)
 
-		links := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
-		result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links)
+		// Check if domains mode was explicitly requested
+		if c.shouldCheckDeadLinks() {
+			links := c.infra.ContentExtractor.ExtractLinks(content, task.URL)
+			result.DeadLinks, result.DeadDomains = c.infra.ContentExtractor.CheckDeadLinks(links, task.URL)
+			c.infra.Metrics.UpdateLinksChecked(int64(len(links)))
+			c.infra.Metrics.UpdateDeadLinksFound(int64(len(result.DeadLinks)))
+			c.infra.Metrics.UpdateDeadDomainsFound(int64(len(result.DeadDomains)))
+		} else {
+			// Skip dead link checking for performance when not explicitly requested
+			result.DeadLinks = []string{}   // Empty - no dead link checking
+			result.DeadDomains = []string{} // Empty - no dead link checking
+		}
 
 		c.infra.Metrics.UpdateEmailsFound(int64(len(result.Emails)))
 		keywordCount := int64(0)
@@ -180,9 +212,6 @@ func (c *CrawlerService) processURL(ctx context.Context, task domain.URLTask, ma
 			keywordCount += int64(count)
 		}
 		c.infra.Metrics.UpdateKeywordsFound(keywordCount)
-		c.infra.Metrics.UpdateLinksChecked(int64(len(links)))
-		c.infra.Metrics.UpdateDeadLinksFound(int64(len(result.DeadLinks)))
-		c.infra.Metrics.UpdateDeadDomainsFound(int64(len(result.DeadDomains)))
 	}
 
 	// Extract new URLs for crawling if not at max depth)
@@ -207,6 +236,14 @@ func (c *CrawlerService) fetchURL(url string) (string, int, error) {
 		return "", 0, err
 	}
 	defer resp.Body.Close()
+
+	// Check Content-Type header - only process HTML content for performance
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "text/html") &&
+		!strings.Contains(strings.ToLower(contentType), "application/xhtml") {
+		// Skip non-HTML content (images, PDFs, videos, etc.)
+		return "", resp.StatusCode, fmt.Errorf("skipped non-HTML content: %s", contentType)
+	}
 
 	// Reduced response size limit to prevent memory issues (max 2MB) - Not Guaranteed to be enough for all pages, but just better than 10MB
 	// This prevents 50 workers * 2MB = 100MB max instead of 500MB
@@ -278,4 +315,10 @@ func (c *CrawlerService) updateMetrics(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// shouldCheckDeadLinks determines if dead link checking should be enabled
+// This checks if the --domains flag was explicitly passed, even in "all" mode
+func (c *CrawlerService) shouldCheckDeadLinks() bool {
+	return c.checkDeadDomains || c.mode == "domains"
 }

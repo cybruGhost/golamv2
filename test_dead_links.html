@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dead Link Test Page</title>
+</head>
+<body>
+    <h1>Test Page for Dead Link Detection</h1>
+    
+    <h2>Dead Links (should be detected):</h2>
+    <ul>
+        <li><a href="https://definitely-does-not-exist-1234k56789.com">Non-existent domain</a></li>
+        <li><a href="https://httpstat.us/404">HTTP 404 test</a></li>
+        <li><a href="https://httpstat.us/410">HTTP 410 test</a></li>
+        <li><a href="https://httpstat.us/500">HTTP 500 test</a></li>
+        <li><a href="https://invalid-domain-12345.xyz/nonexistent">Invalid domain with path</a></li>
+    </ul>
+    
+    <h2>Working Links (should NOT be detected as dead):</h2>
+    <ul>
+        <li><a href="https://httpstat.us/200">HTTP 200 test</a></li>
+        <li><a href="https://example.org">Example.org</a></li>
+        <li><a href="https://httpbin.org/get">HTTPBin GET</a></li>
+    </ul>
+    
+    <h2>Slow Links (timeout test - 2sec timeout):</h2>
+    <ul>
+        <li><a href="https://httpstat.us/200?sleep=3000">3 second delay (should timeout)</a></li>
+        <li><a href="https://httpstat.us/200?sleep=1000">1 second delay (should work)</a></li>
+    </ul>
+    
+    <h2>Redirect Tests:</h2>
+    <ul>
+        <li><a href="https://httpstat.us/301">HTTP 301 redirect</a></li>
+        <li><a href="https://httpstat.us/302">HTTP 302 redirect</a></li>
+    </ul>
+    
+    <p>Total links: 12 (5 should be dead, 7 should be working/redirects)</p>
+    <p>With 20% sampling: ~2-3 links will be checked</p>
+</body>
+</html>

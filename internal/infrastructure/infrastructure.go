@@ -45,6 +45,12 @@ func NewInfrastructure(maxMemoryMB int) (*Infrastructure, error) {
 	// Create content extractor
 	contentExtractor := NewContentExtractor()
 
+	// Set storage reference for async dead link processing
+	contentExtractor.SetStorage(storage)
+
+	// Set metrics reference for updating dead link counters
+	contentExtractor.SetMetrics(metricsCollector)
+
 	// Set up memory tracking components
 	metricsCollector.SetComponentMemoryTrackers(bloomFilter, storage, urlQueue)
 
@@ -73,6 +79,11 @@ func (i *Infrastructure) Close() error {
 
 	if err := i.Storage.Close(); err != nil {
 		errors = append(errors, fmt.Errorf("failed to close storage: %v", err))
+	}
+
+	// Close the content extractor to shut down async workers
+	if extractor, ok := i.ContentExtractor.(*ContentExtractor); ok {
+		extractor.Close()
 	}
 
 	if len(errors) > 0 {

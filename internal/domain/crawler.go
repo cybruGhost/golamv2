@@ -112,7 +112,7 @@ type ContentExtractor interface {
 	ExtractKeywords(content string, keywords []string) map[string]int
 	ExtractLinks(content, baseURL string) []string
 	ExtractTitle(content string) string
-	CheckDeadLinks(links []string) ([]string, []string) // deadLinks, deadDomains
+	CheckDeadLinks(links []string, sourceURL string) ([]string, []string) // deadLinks, deadDomains
 }
 
 // IsValidURL checks if a URL is valid

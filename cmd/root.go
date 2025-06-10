@@ -70,7 +70,7 @@ func runCrawler(cmd *cobra.Command, args []string) {
 	defer infra.Close()
 
 	// Create application service
-	app := application.NewCrawlerService(infra, domain.CrawlMode(mode), keywords)
+	app := application.NewCrawlerService(infra, domain.CrawlMode(mode), keywords, domainMode)
 
 	// Start dashboard with storage and URL queue access
 	dashboard := interfaces.NewDashboard(infra.GetMetrics(), infra.Storage, infra.URLQueue, dashboardPort)
@@ -109,18 +109,24 @@ func runCrawler(cmd *cobra.Command, args []string) {
 }
 
 func determineCrawlMode() string {
+	// Multi-mode support: collect all enabled modes
 	var modes []string
 
 	if emailMode {
 		modes = append(modes, "email")
 	}
-	if domainMode {
-		modes = append(modes, "domains")
-	}
 	if len(keywords) > 0 {
 		modes = append(modes, "keywords")
 	}
+	if domainMode {
+		modes = append(modes, "domains")
+	}
 
+	if len(modes) == 0 {
+		log.Fatal("At least one hunting mode must be specified: --email, --domains, or --keywords")
+	}
+
+	// If multiple modes, use "all" but i've configured the "all" mode to avoid dead link checking, to enable dead link checking, explicitly use --domains
 	if len(modes) > 1 {
 		return "all"
 	}

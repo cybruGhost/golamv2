@@ -4,7 +4,7 @@
 
 Added a comprehensive memory breakdown card to the GolamV2 dashboard that displays real-time memory usage by component, providing detailed visibility into memory allocation across different parts of the application.
 
-## 🧠 Memory Components Tracked
+## Memory Components Tracked
 
 | Component | Description | Estimation Method |
 |-----------|-------------|-------------------|
